@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>My Word Book 📚</title>
+<title>Word Garden 🌱</title>
 <style>
 :root{--pink:#ff6fa5;--purple:#8f6bff;--blue:#4cc9f0;--green:#38d9a9;--yellow:#ffd166;--ink:#3a2c5a}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -83,7 +83,14 @@ input[type=text]{width:220px}
 .tools input,.tools select{width:auto;min-width:160px}
 .pager{display:flex;gap:14px;justify-content:center;align-items:center;margin:18px 0;font-weight:700}
 #ov{position:fixed;inset:0;background:rgba(80,50,160,.55);display:none;place-items:center;z-index:50;padding:16px}
-#ov .panel{max-width:400px;text-align:center}
+#ov .panel,#pick .panel{max-width:400px;text-align:center}
+#pick{position:fixed;inset:0;background:rgba(80,50,160,.55);display:none;place-items:center;z-index:60;padding:16px;overflow:auto}
+.pk{display:flex;align-items:center;gap:8px;margin-top:10px}
+.pk .go{flex:1;text-align:left;background:#fff;border:2px solid #e3d8ff;border-radius:16px;padding:12px 14px;font:inherit;font-weight:800;font-size:17px;cursor:pointer;color:#3b2f63}
+.pk .go small{display:block;font-weight:600;font-size:12px;color:#7a6a9a}
+.pk .go:hover{border-color:var(--purple)}
+.pk .del{background:none;border:none;font-size:18px;cursor:pointer;opacity:.6}
+.sw{background:none;border:none;font:inherit;font-size:13px;font-weight:800;color:var(--purple);cursor:pointer;text-decoration:underline;margin-left:6px}
 #cv{position:fixed;inset:0;pointer-events:none;z-index:60}
 .kgrid{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:12px}
 .kw{border:2px solid #e3d8ff;background:#fff;border-radius:14px;padding:8px 12px;font-size:15px;font-weight:700;cursor:pointer;color:var(--ink);text-align:left;line-height:1.2}
@@ -118,9 +125,10 @@ input[type=text]{width:220px}
 </head>
 <body>
 <canvas id="cv"></canvas>
-<div id="ov"><div class="panel"><div style="font-size:50px">📚</div><h2>Welcome! · Xin chào</h2><p class="mt">What's your name?</p><p class="mt"><input type="text" id="nm" placeholder="Your name"></p><p class="mt"><button class="btn" id="nmGo">Let's start 🎉</button></p></div></div>
+<div id="pick"><div class="panel"><div style="font-size:46px">👋</div><h2>Who is learning?</h2><p class="sub">Each person has their own progress.</p><div id="pkList"></div><p class="mt"><button class="btn" id="pkNew">➕ New learner</button></p></div></div>
+<div id="ov"><div class="panel"><div style="font-size:50px">📚</div><h2 id="nmTitle">Welcome! · Xin chào</h2><p class="mt">What's your name?</p><p class="mt"><input type="text" id="nm" placeholder="Your name"></p><p class="mt"><button class="btn" id="nmGo">Let's start 🎉</button> <button class="btn w" id="nmCancel" style="display:none">Cancel</button></p></div></div>
 <div id="app">
-<header><h1>📚 My Word Book</h1><div class="sub">English • Tiếng Việt — learn a few new words every day</div></header>
+<header><h1>🌱 Word Garden</h1><div class="sub">English • Tiếng Việt — learn a few new words every day</div></header>
 <nav id="nav">
  <button data-t="home" class="on">🏠 Home</button>
  <button data-t="learn">📖 Learn</button>
@@ -3189,9 +3197,14 @@ WORDS.forEach(w=>{const e=EX[w.en];if(e){w.ex=e[0];w.exv=e[1]}});
 const COL=["#ff6fa5","#8f6bff","#1fb6e0","#12b886","#f59f00","#fd7e14","#e64980","#4c6ef5","#20c997","#be4bdb"];
 const KEY="word-garden-v2";
 const DEF={name:"",goal:10,learned:[],known:[],done:{date:"",ids:[]},streak:0,last:"",best:null,tests:0,box:{},log:{}};
-function load(){try{return JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){return{}}}
-let S=Object.assign(structuredClone(DEF),load());
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const PK="word-garden-profiles",CK="word-garden-current";
+const jget=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}};
+const jset=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+const pkey=id=>KEY+"-"+id;
+let profiles=jget(PK,[]),curId=null,S=structuredClone(DEF);
+// move progress saved by the older version into the first profile
+(()=>{const old=jget(KEY,null);if(old&&old.name&&!profiles.length){profiles=[{id:"p1",name:old.name}];jset(PK,profiles);jset(pkey("p1"),old);try{localStorage.removeItem(KEY)}catch(e){}}})();
+const save=()=>{if(!curId)return;jset(pkey(curId),S);const p=profiles.find(x=>x.id===curId);if(p&&p.name!==S.name){p.name=S.name;jset(PK,profiles)}};
 const $=id=>document.getElementById(id);
 const L=()=>new Set(S.learned.concat(S.known));
 const day=(d=new Date())=>d.toLocaleDateString("en-CA");
@@ -3234,7 +3247,7 @@ $("nav").onclick=e=>{const b=e.target.closest("button");if(b)show(b.dataset.t)};
 function pending(extra){const need=Math.max(0,S.goal-S.done.ids.length)+extra;const l=L();return WORDS.filter(w=>!l.has(w.id)).slice(0,need).map(w=>w.id)}
 function renderHome(){
  ensureDay();
- $("hello").innerHTML=`Hi ${S.name||"friend"} 📚 <button class="edit" onclick="askName()">✏️</button>`;
+ $("hello").innerHTML=`Hi ${esc(S.name||"friend")} 📚 <button class="edit" onclick="askName()" title="Change name">✏️</button><button class="sw" onclick="showPicker()">Switch user</button>`;
  const n=S.done.ids.length,g=S.goal,pct=Math.min(100,n/g*100);
  $("ring").style.setProperty("--p",pct);
  $("ringTxt").innerHTML=`${n}/${g}<small>today</small>`;
@@ -3255,12 +3268,43 @@ $("cgGo").onclick=()=>{const v=parseInt($("cg").value);if(v>0)setGoal(Math.min(2
 function setGoal(v){S.goal=v;save();Qtitle="";renderHome()}
 $("goLearn").onclick=()=>{ensureDay();const p=pending(0);startSession(p.length?p:pending(5),p.length?"Today's words":"Bonus words");};
 $("goTest").onclick=()=>{T=null;show("test")};
-function askName(){$("nm").value=S.name;$("ov").style.display="grid";$("nm").focus()}
-$("nmGo").onclick=()=>{S.name=$("nm").value.trim()||"friend";save();$("ov").style.display="none";renderHome()};
+let nmMode="rename";
+function askName(){nmMode="rename";$("nmTitle").textContent="Change name";$("nmCancel").style.display="inline-block";$("nm").value=S.name;$("ov").style.display="grid";$("nm").focus()}
+function newLearner(){nmMode="new";$("nmTitle").textContent="New learner · Xin chào";$("nmCancel").style.display=profiles.length?"inline-block":"none";$("nm").value="";$("pick").style.display="none";$("ov").style.display="grid";$("nm").focus()}
+function openProfile(id){
+ curId=id;try{localStorage.setItem(CK,id)}catch(e){}
+ S=Object.assign(structuredClone(DEF),jget(pkey(id),{}));
+ if(!S.box||typeof S.box!=="object")S.box={};if(!S.log||typeof S.log!=="object")S.log={};
+ fixBoxes();ensureDay();save();Qtitle="";T=null;
+ $("pick").style.display="none";$("ov").style.display="none";
+ renderHome();show("home");
+}
+function showPicker(){
+ if(!profiles.length){newLearner();return}
+ $("ov").style.display="none";
+ $("pkList").innerHTML=profiles.map(p=>{const d=jget(pkey(p.id),{});const n=(d.learned||[]).length;
+  return `<div class="pk"><button class="go" data-o="${p.id}">${esc(p.name)}<small>${n} word${n===1?"":"s"} learned</small></button><button class="del" data-d="${p.id}" title="Delete">🗑</button></div>`}).join("");
+ $("pkList").querySelectorAll("[data-o]").forEach(b=>b.onclick=()=>openProfile(b.dataset.o));
+ $("pkList").querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>{
+  const p=profiles.find(x=>x.id===b.dataset.d);
+  if(!confirm("Delete "+p.name+" and all of their progress? This cannot be undone."))return;
+  profiles=profiles.filter(x=>x.id!==p.id);jset(PK,profiles);try{localStorage.removeItem(pkey(p.id))}catch(e){}
+  if(curId===p.id){curId=null;try{localStorage.removeItem(CK)}catch(e){}}
+  showPicker()});
+ $("pick").style.display="grid";
+}
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+$("pkNew").onclick=newLearner;
+$("nmCancel").onclick=()=>{$("ov").style.display="none";if(nmMode==="new"&&!curId)showPicker();else if(nmMode==="new")showPicker()};
+$("nmGo").onclick=()=>{
+ const name=$("nm").value.trim()||"friend";
+ if(nmMode==="new"){const id="p"+Date.now().toString(36);profiles.push({id,name});jset(PK,profiles);jset(pkey(id),Object.assign(structuredClone(DEF),{name}));openProfile(id)}
+ else{S.name=name;save();$("ov").style.display="none";renderHome()}
+};
 $("nm").onkeydown=e=>{if(e.key==="Enter")$("nmGo").click()};
 $("bkSave").onclick=()=>{
  const blob=new Blob([JSON.stringify({app:"my-word-book",v:2,data:S})],{type:"application/json"});
- const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="my-word-book-progress-"+day()+".json";
+ const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="word-garden-progress-"+day()+".json";
  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000)};
 $("bkLoad").onclick=()=>$("bkFile").click();
 $("bkFile").onchange=e=>{
@@ -3269,7 +3313,7 @@ $("bkFile").onchange=e=>{
   const j=JSON.parse(r.result),d=j&&j.app==="my-word-book"?j.data:null;
   if(!d||!Array.isArray(d.learned)||!Array.isArray(d.known))throw 0;
   if(!confirm("Replace the progress on this device with the backup file?"))return;
-  S=Object.assign(structuredClone(DEF),d);if(!S.box||typeof S.box!=="object")S.box={};if(!S.log||typeof S.log!=="object")S.log={};fixBoxes();ensureDay();save();Qtitle="";T=null;renderHome();alert("Progress restored ✅")
+  S=Object.assign(structuredClone(DEF),d);if(!S.name)S.name=(profiles.find(x=>x.id===curId)||{}).name||"friend";if(!S.box||typeof S.box!=="object")S.box={};if(!S.log||typeof S.log!=="object")S.log={};fixBoxes();ensureDay();save();Qtitle="";T=null;renderHome();alert("Progress restored ✅")
  }catch(err){alert("This file does not look like a Word Book backup.")}};
  r.readAsText(f);e.target.value=""};
 
@@ -3477,10 +3521,12 @@ function renderKnow(){
 }
 $("kAll").onclick=()=>{const k=new Set(S.known);kView.forEach(w=>k.add(w.id));S.known=[...k];save();renderKnow()};
 $("kNone").onclick=()=>{const v=new Set(kView.map(w=>w.id));S.known=S.known.filter(x=>!v.has(x));save();renderKnow()};
-fixBoxes();
-if(!Object.keys(S.log).length&&S.done.date===day()&&S.done.ids.length)S.log[day()]={learned:S.done.ids.length,tests:0,q:0,ok:0};
-ensureDay();save();renderHome();
-if(!S.name)askName();
+{
+ const last=localStorage.getItem(CK);
+ if(profiles.length===1)openProfile(profiles[0].id);
+ else if(profiles.length>1)showPicker();
+ else newLearner();
+}
 </script>
 </body>
 </html>
