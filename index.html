@@ -97,6 +97,22 @@ input[type=text]{width:220px}
 .card .ex{font-size:12px;padding:5px 8px;margin:0}.card .ex span{font-size:11px}
 .exr{margin:10px auto 0;max-width:420px;text-align:left;font-size:15px}
 .rev{background:linear-gradient(135deg,#fff4d6,#ffe3ef);border-radius:18px;padding:12px 16px;margin-top:14px;text-align:center;font-weight:700}
+.ptiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:14px 0}
+.chart{display:flex;gap:4px;align-items:flex-end;padding:10px 4px 0;border-bottom:2px solid #e3d8ff}
+.pbar{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
+.pv{font-size:11px;font-weight:800;margin-bottom:2px;height:14px}
+.pcol{width:100%;max-width:32px;border-radius:8px 8px 0 0;background:linear-gradient(180deg,var(--purple),var(--pink));min-height:3px}
+.pcol.goal{background:linear-gradient(180deg,var(--green),var(--blue))}
+.pcol.zero{background:#e8e0ff}
+.pbar.now .pcol{box-shadow:0 0 0 3px rgba(255,209,102,.9)}
+.plab{display:flex;gap:4px;padding:4px 4px 0}
+.plab div{flex:1;min-width:0;text-align:center;font-size:10px;color:#7a6a9a;font-weight:700;line-height:1.15}
+.plist{margin-top:14px;display:grid;gap:6px}
+.prow{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:6px;background:#fff;border-radius:12px;padding:8px 12px;font-size:14px;align-items:center;box-shadow:0 2px 6px rgba(120,80,200,.1)}
+.prow.h{background:none;box-shadow:none;font-size:12px;color:#7a6a9a;font-weight:800}
+.prow.cur{border:2px solid var(--yellow)}
+.prow.zero{opacity:.55}
+.prow span:not(:first-child){text-align:center}
 .backup{margin-top:18px;padding-top:14px;border-top:2px dashed #e3d8ff;text-align:center;font-size:13px;color:#7a6a9a}
 </style>
 </head>
@@ -109,6 +125,7 @@ input[type=text]{width:220px}
  <button data-t="home" class="on">🏠 Home</button>
  <button data-t="learn">📖 Learn</button>
  <button data-t="test">📝 Test</button>
+ <button data-t="prog">📊 Progress</button>
  <button data-t="know">⭐ Words I know</button>
  <button data-t="all">🗂 All words</button>
 </nav>
@@ -140,6 +157,8 @@ input[type=text]{width:220px}
 <section id="learn"><div class="panel" id="learnBox"></div></section>
 
 <section id="test"><div class="panel" id="testBox"></div></section>
+
+<section id="prog"><div class="panel" id="progBox"></div></section>
 
 <section id="know"><div class="panel">
  <h2 class="center">⭐ Words I already know</h2>
@@ -3169,7 +3188,7 @@ const EX={"about":["This book is about animals.","Cuốn sách này nói về đ
 WORDS.forEach(w=>{const e=EX[w.en];if(e){w.ex=e[0];w.exv=e[1]}});
 const COL=["#ff6fa5","#8f6bff","#1fb6e0","#12b886","#f59f00","#fd7e14","#e64980","#4c6ef5","#20c997","#be4bdb"];
 const KEY="word-garden-v2";
-const DEF={name:"",goal:10,learned:[],known:[],done:{date:"",ids:[]},streak:0,last:"",best:null,tests:0,box:{}};
+const DEF={name:"",goal:10,learned:[],known:[],done:{date:"",ids:[]},streak:0,last:"",best:null,tests:0,box:{},log:{}};
 function load(){try{return JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){return{}}}
 let S=Object.assign(structuredClone(DEF),load());
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
@@ -3180,6 +3199,7 @@ const addDays=n=>{const d=new Date();d.setDate(d.getDate()+n);return day(d)};
 const INT=[1,2,4,7,14,30];
 function dueIds(){const t=day();return S.learned.filter(id=>S.box[id]&&S.box[id].due<=t)}
 function updateBox(id,ok){const b=S.box[id];if(!b)return;if(ok){if(b.due>day())return;b.b=Math.min(b.b+1,INT.length-1);b.due=addDays(INT[b.b])}else{b.b=0;b.due=addDays(1)}save()}
+function bump(f,n){const k=day();const l=S.log[k]||(S.log[k]={learned:0,tests:0,q:0,ok:0});l[f]=(l[f]||0)+n}
 function fixBoxes(){S.learned.forEach(id=>{if(!S.box[id])S.box[id]={b:0,due:day()}})}
 const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
 function ensureDay(){if(S.done.date!==day())S.done={date:day(),ids:[]}}
@@ -3203,6 +3223,7 @@ function show(t){
  if(t==="home")renderHome();
  if(t==="test"&&!T)renderTestSetup();
  if(t==="all")renderAll();
+ if(t==="prog")renderProg();
  if(t==="know")renderKnow();
  if(t==="learn"&&!Qtitle)startSession(pending(0),"Today's words");
  scrollTo(0,0);
@@ -3248,7 +3269,7 @@ $("bkFile").onchange=e=>{
   const j=JSON.parse(r.result),d=j&&j.app==="my-word-book"?j.data:null;
   if(!d||!Array.isArray(d.learned)||!Array.isArray(d.known))throw 0;
   if(!confirm("Replace the progress on this device with the backup file?"))return;
-  S=Object.assign(structuredClone(DEF),d);if(!S.box||typeof S.box!=="object")S.box={};fixBoxes();ensureDay();save();Qtitle="";T=null;renderHome();alert("Progress restored ✅")
+  S=Object.assign(structuredClone(DEF),d);if(!S.box||typeof S.box!=="object")S.box={};if(!S.log||typeof S.log!=="object")S.log={};fixBoxes();ensureDay();save();Qtitle="";T=null;renderHome();alert("Progress restored ✅")
  }catch(err){alert("This file does not look like a Word Book backup.")}};
  r.readAsText(f);e.target.value=""};
 
@@ -3257,7 +3278,7 @@ let Q=[],Qtotal=0,Qtitle="";
 function startSession(ids,title){Q=ids.slice();Qtotal=Q.length;Qtitle=title;show("learn");renderLearn()}
 function markLearned(id){
  ensureDay();
- S.known=S.known.filter(x=>x!==id);if(!S.learned.includes(id))S.learned.push(id);
+ S.known=S.known.filter(x=>x!==id);if(!S.learned.includes(id)){S.learned.push(id);bump("learned",1)}
  if(!S.done.ids.includes(id)&&S.learned.length){S.done.ids.push(id)}
  if(!S.box[id])S.box[id]={b:0,due:addDays(1)};
  if(S.last!==day()){const y=new Date();y.setDate(y.getDate()-1);S.streak=S.last===day(y)?S.streak+1:1;S.last=day()}
@@ -3358,14 +3379,14 @@ function renderQ(){
   const right=b.textContent===q.ans;
   $("op").querySelectorAll(".opt").forEach(x=>{x.disabled=true;if(x.textContent===q.ans)x.classList.add("ok")});
   if(right)T.score++;else{b.classList.add("no");T.wrong.push(q.id)}
-  updateBox(q.id,right);
+  updateBox(q.id,right);bump("q",1);if(right)bump("ok",1);
   $("nx").innerHTML=`<div style="font-weight:800;margin-bottom:10px">${right?"✨ Correct!":"Not quite — it's “"+q.ans+"”"}</div>${w.ex?`<div class="ex exr"><b>${w.ex}</b><br><span>${w.exv}</span></div>`:""}<p class="mt"><button class="btn" id="nb">${T.i+1<T.qs.length?"Next →":"See result 🎁"}</button></p>`;
   $("nb").onclick=()=>{T.i++;renderQ()};
  };
 }
 function renderResult(){
  const n=T.qs.length,pct=Math.round(T.score/n*100),st=pct>=90?3:pct>=60?2:1;
- S.tests++;if(S.best==null||pct>S.best)S.best=pct;save();
+ S.tests++;bump("tests",1);if(S.best==null||pct>S.best)S.best=pct;save();
  if(pct>=60)confetti();
  const msg=pct>=90?"Superstar! 🌟":pct>=60?"Great job! Keep going ✨":"Good try! Let's practice the tricky ones 💪";
  const wr=[...new Set(T.wrong)];
@@ -3376,6 +3397,42 @@ function renderResult(){
  if(wr.length)$("pr").onclick=()=>{T=null;Qtitle="";startSession(wr,"Practice")};
  $("ta").onclick=()=>{T=null;renderTestSetup()};
  $("th").onclick=()=>{T=null;show("home")};
+}
+
+// ---------- PROGRESS
+let pv="day";
+const ws=d=>{const x=new Date(d);x.setDate(x.getDate()-((x.getDay()+6)%7));return x};
+const fmt=(d,o)=>d.toLocaleDateString("en-GB",o);
+function sumRange(a,b){const r={learned:0,tests:0,q:0,ok:0,days:0};for(const k in S.log){if(k>=a&&k<=b){const e=S.log[k];r.learned+=e.learned||0;r.tests+=e.tests||0;r.q+=e.q||0;r.ok+=e.ok||0;if((e.learned||0)+(e.q||0)>0)r.days++}}return r}
+function periods(v){
+ const out=[],t=new Date();t.setHours(0,0,0,0);
+ if(v==="day")for(let i=13;i>=0;i--){const d=new Date(t);d.setDate(d.getDate()-i);out.push({a:day(d),b:day(d),label:fmt(d,{weekday:"short"})+"<br>"+d.getDate(),full:fmt(d,{weekday:"short",day:"numeric",month:"short"})})}
+ if(v==="week")for(let i=7;i>=0;i--){const s=ws(t);s.setDate(s.getDate()-7*i);const e=new Date(s);e.setDate(e.getDate()+6);out.push({a:day(s),b:day(e),label:fmt(s,{day:"numeric",month:"short"}),full:fmt(s,{day:"numeric",month:"short"})+" – "+fmt(e,{day:"numeric",month:"short"})})}
+ if(v==="month")for(let i=5;i>=0;i--){const s=new Date(t.getFullYear(),t.getMonth()-i,1),e=new Date(s.getFullYear(),s.getMonth()+1,0);out.push({a:day(s),b:day(e),label:fmt(s,{month:"short"}),full:fmt(s,{month:"long",year:"numeric"})})}
+ return out;
+}
+function renderProg(){
+ const box=$("progBox"),ps=periods(pv).map(p=>Object.assign(p,sumRange(p.a,p.b)));
+ const cur=ps[ps.length-1],max=Math.max(1,...ps.map(p=>p.learned)),all=sumRange("0000","9999");
+ const acc=r=>r.q?Math.round(r.ok/r.q*100)+"%":"–";
+ const noun={day:"Today",week:"This week",month:"This month"}[pv];
+ const first=Object.keys(S.log).sort()[0];
+ const tile=(b,s)=>`<div class="stat"><b>${b}</b><span>${s}</span></div>`;
+ const empty=!all.learned&&!all.q;
+ box.innerHTML=`<h2 class="center">📊 My progress</h2>
+  <p class="center sub">See how much you practise every day, week and month.</p>
+  <div class="chips mt">${[["day","📅 Day"],["week","🗓 Week"],["month","🌙 Month"]].map(([k,t])=>`<button class="chip ${k===pv?"on":""}" data-pv="${k}">${t}</button>`).join("")}</div>
+  <div class="ptiles">${tile(cur.learned,noun+": new words")}${tile(cur.tests,noun+": tests")}${tile(acc(cur),noun+": test score")}${tile(all.days,"study days in total")}</div>
+  ${empty?'<p class="center mt"><b>Learn a few words and take a test — your record will appear here! 🌱</b></p>':""}
+  <h3 class="center">New words learned</h3>
+  <div class="chart" style="height:${150}px">${ps.map(p=>{const h=p.learned?Math.max(6,Math.round(p.learned/max*100)):3;return `<div class="pbar ${p===cur?"now":""}"><div class="pv">${p.learned||""}</div><div class="pcol ${!p.learned?"zero":pv==="day"&&p.learned>=S.goal?"goal":""}" style="height:${h}px"></div></div>`}).join("")}</div>
+  <div class="plab">${ps.map(p=>`<div>${p.label}</div>`).join("")}</div>
+  ${pv==="day"?`<p class="center sub mt">🟢 green bar = you reached your daily goal of ${S.goal} words</p>`:""}
+  <h3 class="center">Details</h3>
+  <div class="plist"><div class="prow h"><span></span><span>Words</span><span>Tests</span><span>Score</span></div>
+  ${ps.slice().reverse().map(p=>`<div class="prow ${p===cur?"cur":""} ${!p.learned&&!p.q?"zero":""}"><span>${p.full}${pv==="day"&&p.learned>=S.goal?" ✅":""}</span><span>${p.learned}</span><span>${p.tests}</span><span>${acc(p)}</span></div>`).join("")}</div>
+  ${first?`<p class="center sub mt">Your record started on ${fmt(new Date(first+"T00:00:00"),{day:"numeric",month:"long",year:"numeric"})}.</p>`:""}`;
+ box.querySelectorAll("[data-pv]").forEach(b=>b.onclick=()=>{pv=b.dataset.pv;renderProg()});
 }
 
 // ---------- ALL WORDS
@@ -3420,7 +3477,9 @@ function renderKnow(){
 }
 $("kAll").onclick=()=>{const k=new Set(S.known);kView.forEach(w=>k.add(w.id));S.known=[...k];save();renderKnow()};
 $("kNone").onclick=()=>{const v=new Set(kView.map(w=>w.id));S.known=S.known.filter(x=>!v.has(x));save();renderKnow()};
-fixBoxes();ensureDay();save();renderHome();
+fixBoxes();
+if(!Object.keys(S.log).length&&S.done.date===day()&&S.done.ids.length)S.log[day()]={learned:S.done.ids.length,tests:0,q:0,ok:0};
+ensureDay();save();renderHome();
 if(!S.name)askName();
 </script>
 </body>
